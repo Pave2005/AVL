@@ -6,8 +6,8 @@
 #include <vector>
 #include <stack>
 #include <iterator>
-
-const int poison = 888;
+#include <fstream>
+#include <cstdlib>
 
 namespace Trees
 {
@@ -31,7 +31,7 @@ namespace Trees
 
             void update ()
             {
-                int leftHeight  = (left_ ? left_->height_ : 0);
+                int leftHeight  = (left_  ? left_->height_  : 0);
                 int rightHeight = (right_ ? right_->height_ : 0);
                 balanceFactor_  = leftHeight - rightHeight;
                 height_         = std::max(leftHeight, rightHeight) + 1;
@@ -42,8 +42,6 @@ namespace Trees
         Node* root_ = nullptr;
 
     public:
-        class iterator;
-
         SearchTree () : nodes_({}), root_(nullptr) {}
 
         SearchTree (std::vector<T>& data) : nodes_({}), root_(nullptr)
@@ -56,6 +54,7 @@ namespace Trees
             for (auto* node : nodes_) delete node;
         }
 
+// -----
         void tree_swap (SearchTree& rhs)
         {
             std::swap(this->root_, rhs.root_);
@@ -64,13 +63,13 @@ namespace Trees
 
         SearchTree (const SearchTree& rhs) : nodes_(rhs.nodes_.size()), root_(nullptr)
         {
-            std::vector <Node*> tmp_nodes_{};
+            std::vector <Node*> tmp_nodes_ {};
 
             tmp_nodes_.reserve(rhs.nodes_.size());
 
             for (int i = 0; i < rhs.nodes_.size(); i++)
             {
-                tmp_nodes_.emplace_back(new Node{rhs.nodes_[i]->key_ });
+                tmp_nodes_.emplace_back(new Node {rhs.nodes_[i]->key_ });
                 tmp_nodes_[i]->indx_ = i;
             }
 
@@ -102,6 +101,7 @@ namespace Trees
             return *this;
         }
 
+// -----
         SearchTree (SearchTree&& rhs) noexcept { tree_swap (rhs); }
 
         SearchTree& operator= (SearchTree&& rhs)
@@ -110,24 +110,26 @@ namespace Trees
             return *this;
         }
 
-        int  size  () const { return nodes_.size(); }
+// -----
+        int  size  () const { return nodes_.size();  }
         bool empty () const { return nodes_.empty(); }
 
+// -----
         Node* rotate_left (Node* node)
         {
-            Node* tmp = node->right_;
+            Node* tmp    = node->right_;
             tmp->parent_ = node->parent_;
 
             node->right_ = tmp->left_;
             if (tmp->left_) tmp->left_->parent_ = node;
 
-            tmp->left_ = node;
+            tmp->left_    = node;
             node->parent_ = tmp;
 
             if (node == root_) root_ = tmp;
 
             node->update ();
-            tmp->update ();
+            tmp->update  ();
 
             return tmp;
         }
@@ -140,13 +142,13 @@ namespace Trees
             node->left_ = tmp->right_;
             if (tmp->right_) tmp->right_->parent_ = node;
 
-            tmp->right_ = node;
+            tmp->right_   = node;
             node->parent_ = tmp;
 
             if (node == root_) root_ = tmp;
 
             node->update ();
-            tmp->update ();
+            tmp->update  ();
 
             return tmp;
         }
@@ -154,6 +156,7 @@ namespace Trees
         Node* balance (Node* node)
         {
             node->update ();
+
             if (node->balanceFactor_ > 1)
             {
                 if (node->left_ && node->left_->balanceFactor_ < 0)
@@ -173,25 +176,28 @@ namespace Trees
             return node;
         }
 
-        Node* insert_rec (T key, Node* node)
+// -----
+        Node* insert_node (T key, Node* node)
         {
             if (!node)
             {
                 node = new Node {key};
-                node->indx_ = nodes_.size ();
-                nodes_.push_back (node);
+                node->indx_ = nodes_.size();
+                nodes_.push_back(node);
                 return node;
             }
+
             if (key < node->key_)
             {
-                node->left_ = insert_rec (key, node->left_);
+                node->left_ = insert_node (key, node->left_);
                 node->left_->parent_ = node;
             }
-            else
+            else if (key > node->key_)
             {
-                node->right_ = insert_rec (key, node->right_);
+                node->right_ = insert_node (key, node->right_);
                 node->right_->parent_ = node;
             }
+            else { throw "Keys should not be repeated"; }
 
             return balance (node);
         }
@@ -206,15 +212,15 @@ namespace Trees
             return node->right_;
         }
 
-        Node* extract_rec (T key, Node* node)
+        Node* extract_node (T key, Node* node)
         {
             if (!node) return nullptr;
 
             if (key < node->key_)
-                node->left_ = extract_rec (key, node->left_);
+                node->left_ = extract_node (key, node->left_);
             else if (key > node->key_)
-                node->right_ = extract_rec (key, node->right_);
-            else // проверить, нужен ли здесь else
+                node->right_ = extract_node (key, node->right_);
+            else
             {
                 Node* left  = node->left_;
                 Node* right = node->right_;
@@ -232,7 +238,7 @@ namespace Trees
                 Node* min = right;
                 for (; min->left_ != nullptr; min = min->left_);
 
-                min->right_ = extract_min (right); // проверить на утечку данных
+                min->right_ = extract_min (right);
                 min->left_  = left;
 
                 return balance (min);
@@ -241,42 +247,51 @@ namespace Trees
 
         void insert (T key)
         {
-            Node* inserted_node = insert_rec (key, root_);
-
-            if (nodes_.size() == 1) root_ = inserted_node;
+            try
+            {
+                Node* inserted_node = insert_node (key, root_);
+                if (nodes_.size() == 1) root_ = inserted_node;
+            }
+            catch (const char* error_message)
+            {
+                std::cout << error_message << std::endl;
+                exit (1);
+            }
         }
 
         void extract (const T& key)
         {
-            Node* extracted_node = extract_rec (key, root_);
-
+            Node* extracted_node = extract_node (key, root_);
             if (!root_) root_ = extracted_node;
         }
 
-        friend iterator do_iterator (const SearchTree* tree, Node* node, std::stack <Node*>&& prevStack);
+// -----
+        class iterator;
+        friend iterator get_iterator (const SearchTree* tree, Node* node, std::stack <Node*>&& prevStack);
 
         iterator begin ()
         {
             Node* res = root_;
-            std::stack<Node*> prevStack{};
+            std::stack<Node*> prevStack {};
 
             if (res != nullptr)
-                for (; res->left_ != nullptr; res = res->left_) prevStack.push (res);
+                for (; res->left_ != nullptr; res = res->left_)
+                    prevStack.push(res);
 
-            return do_iterator (this, res, std::move(prevStack));
+            return get_iterator (this, res, std::move(prevStack));
         }
 
         iterator end ()
         {
-            std::stack<Node*> prevStack{};
-            return do_iterator (this, nullptr, std::move(prevStack));
+            std::stack<Node*> prevStack {};
+            return get_iterator (this, nullptr, std::move(prevStack));
         }
 
         iterator lower_bound (const T& key)
         {
             Node* cur  = root_;
             Node* prev = nullptr;
-            bool lastMoveIsLeft = false;
+            bool prevMoveIsLeft = false;
             std::stack<Node*> prevStack{};
 
             while (cur)
@@ -287,29 +302,26 @@ namespace Trees
                     prevStack.push(cur);
                     cur = cur->left_;
 
-                    lastMoveIsLeft = true;
+                    prevMoveIsLeft = true;
                 }
                 else if (key > cur->key_)
                 {
                     prev = cur;
                     cur = cur->right_;
 
-                    lastMoveIsLeft = false;
+                    prevMoveIsLeft = false;
                 }
                 else
                 {
-                    return do_iterator (this, cur, std::move(prevStack));
+                    return get_iterator (this, cur, std::move(prevStack));
                 }
             }
 
-            if (!prevStack.empty() && lastMoveIsLeft)
-            {
-                prevStack.pop ();
-            }
+            if (!prevStack.empty() && prevMoveIsLeft) prevStack.pop();
 
-            iterator res = do_iterator (this, prev, std::move(prevStack));
+            iterator res = get_iterator (this, prev, std::move(prevStack));
 
-            return (prev->key_ > key) ? res : ++res; // убедиться, что стандартный то же самое делает
+            return (prev->key_ > key) ? res : ++res;
         }
 
         iterator upper_bound (const T& key)
@@ -332,7 +344,7 @@ namespace Trees
                      tree_(const_cast<SearchTree*>(tree)),
                      node_(node)
             {
-                std::swap (prevStack, prevStack_);
+                std::swap(prevStack, prevStack_);
                 Node* cur = node;
 
                 if (cur) cur = cur->right_;
@@ -344,9 +356,9 @@ namespace Trees
                 }
             }
 
-            friend iterator do_iterator (const SearchTree* tree, Node* node, std::stack <Node*>&& prevStack)
+            friend iterator get_iterator (const SearchTree* tree, Node* node, std::stack <Node*>&& prevStack)
             {
-                return iterator{tree, node, std::move(prevStack)};
+                return iterator {tree, node, std::move(prevStack)};
             }
 
         public:
@@ -362,13 +374,10 @@ namespace Trees
 
             const T operator* () const
             {
-                if (node_)
-                {
-                    return node_->key_;
-                }
+                if (node_) { return node_->key_; }
 
-                throw "nullptr node";
-                return static_cast <T> (poison);
+                throw "null pointer dereference";
+                return 0;
             }
 
             const T* operator-> () const { return node_; }
@@ -378,7 +387,7 @@ namespace Trees
                 if (!prevStack_.empty())
                 {
                     node_ = prevStack_.top();
-                    prevStack_.pop ();
+                    prevStack_.pop();
 
                     for (Node* cur = node_->right_; cur != nullptr; cur = cur->left_)
                     {
@@ -410,5 +419,42 @@ namespace Trees
                 return !(lhs == rhs);
             }
         };
+
+// -----
+        void tree_dump (const std::string& filename) const
+        {
+            std::ofstream file(filename);
+            file << "digraph G {" << std::endl << "node [shape = record];" << std::endl;
+            if (root_)
+            {
+                file << root_->indx_ << "[shape = doubleoctagon, style = filled, fillcolor = cornflowerblue "
+                                        "label = \"" << root_->key_ << "\"]" << std::endl;
+                node_dump (file, root_);
+            }
+            file << "}";
+            file.close();
+
+            std::string command = "dot -T png " + filename + " -o ./pic/tree.png";
+            std::system (command.c_str());
+        }
+
+        void node_dump (std::ofstream& file, Node* node) const
+        {
+            if (!node) { return; }
+            if (node->left_)
+            {
+                file << node->left_->indx_ << "[shape = doubleoctagon, style = filled, fillcolor = cornflowerblue "
+                                              "label = \"" << node->left_->key_ << "\"]" << std::endl;
+                file << node->indx_ << " -> " << node->left_->indx_ << std::endl;
+                node_dump (file, node->left_);
+            }
+            if (node->right_)
+            {
+                file << node->right_->indx_ << "[shape = doubleoctagon, style = filled, fillcolor = cornflowerblue "
+                                               "label = \"" << node->right_->key_ << "\"]" << std::endl;
+                file << node->indx_ << " -> " << node->right_->indx_ << std::endl;
+                node_dump (file, node->right_);
+            }
+        }
     };
 }

@@ -1,38 +1,36 @@
 #include "tree.h"
-#include <utility>
+#include "get_info.h"
 
 int main ()
 {
-    int elemCount = 30;
     Trees::SearchTree<int> set{};
 
     std::vector<int> buff{};
-    buff.reserve(elemCount);
 
-    for (int i = 0; i < elemCount; i++)
-    {
-        buff.push_back(rand () % elemCount);
-    }
+    get_info::get_keys (std::cin, buff);
 
     set = { buff };
 
-    int reqCount = 5;
     std::vector<std::pair<int, int>> requests{};
 
-    for (int i = 0; i < reqCount; i++)
+    try
     {
-        auto pair = std::make_pair (rand () % elemCount, rand () % elemCount);
-        if (pair.first > pair.second)
+        get_info::get_requests (std::cin, requests);
+
+        for (auto request : requests)
         {
-            std::swap (pair.first, pair.second);
+            auto res = std::distance (set.lower_bound(request.first), set.upper_bound (request.second));
+            std::cout << res << " ";
         }
-        requests.push_back(pair);
+        std::cout << std::endl;
     }
-
-
-    for (auto&& request : requests)
+    catch (const char* error_message)
     {
-        auto res = std::distance (set.lower_bound(request.first), set.upper_bound (request.second));
-        std::cout << res << std::endl;
+        std::cout << error_message << std::endl;
+        exit (1);
     }
+
+    #ifdef PIC
+        set.tree_dump("dot.txt");
+    #endif
 }
