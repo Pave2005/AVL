@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.14)
 
-project(cache)
+project(tree)
 
 enable_testing()
 add_subdirectory(unit_tests)
