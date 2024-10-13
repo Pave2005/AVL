@@ -23,19 +23,10 @@ namespace test_funcs
 
         Trees::SearchTree<int> set{};
 
-        std::vector<int> buff{};
-        get_info::get_keys (file, buff);
-
-        set = { buff };
-
-        std::vector<std::pair<int, int>> requests{};
-        get_info::get_requests (file, requests);
-
-        res.reserve(requests.size());
-        for (int i = 0; i < requests.size(); i++)
+        char id = 0;
+        while (file >> id)
         {
-            auto result = std::distance (set.lower_bound(requests[i].first), set.upper_bound (requests[i].second));
-            res.push_back(result);
+            get_info::handler (id, file, res, set);
         }
 
         file.close();
