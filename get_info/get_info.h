@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <utility>
+#include <stdexcept>
 
 namespace get_info
 {
@@ -12,24 +13,26 @@ namespace get_info
         if (id == 'k')
         {
             int key = 0;
-            stream >> key;
+            if (!(stream >> key)) throw std::runtime_error("incorrect key");
             set.insert (key);
         }
         else if (id == 'q')
         {
+            if (set.empty()) throw std::runtime_error("The tree is empty");
+
             int first = 0;
             int second = 0;
 
-            stream >> first >> second;
+            if (!(stream >> first >> second)) throw std::runtime_error("incorrect border value in request");
 
-            if (first > second) throw "The left border can not be greater then right";
+            if (first > second) throw std::runtime_error("The left border can not be greater then right");
 
             auto res = std::distance(set.lower_bound (first), set.upper_bound (second));
             buff.push_back(res);
         }
         else
         {
-            throw "unknown id";
+            throw std::runtime_error("unknown id");
         }
     }
 }

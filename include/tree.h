@@ -8,6 +8,7 @@
 #include <iterator>
 #include <fstream>
 #include <cstdlib>
+#include <stdexcept>
 
 namespace Trees
 {
@@ -197,7 +198,7 @@ namespace Trees
                 node->right_ = insert_node (key, node->right_);
                 node->right_->parent_ = node;
             }
-            else { throw "Keys should not be repeated"; }
+            else throw std::runtime_error("Keys should not be repeated");
 
             return balance (node);
         }
@@ -376,7 +377,7 @@ namespace Trees
             {
                 if (node_) { return node_->key_; }
 
-                throw "null pointer dereference";
+                throw std::runtime_error("null pointer dereference");
                 return 0;
             }
 

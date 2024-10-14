@@ -1,7 +1,8 @@
 #include "tree.h"
 #include "get_info.h"
 
-int main () try
+int main ()
+try
 {
     Trees::SearchTree<int> set{};
 
@@ -19,8 +20,8 @@ int main () try
         set.tree_dump("dot.txt");
     #endif
 }
-catch (const char* error_message)
+catch (std::exception& expt)
 {
-    std::cout << error_message << std::endl;
+    std::cout << expt.what() << std::endl;
     exit (1);
 }
