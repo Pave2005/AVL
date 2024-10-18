@@ -12,6 +12,8 @@
 
 namespace test_funcs
 {
+    const int error_id = -1;
+
 	void get_result (const std::string& filename, std::vector<int>& res)
     {
         std::ifstream file(filename);
@@ -21,13 +23,17 @@ namespace test_funcs
             exit(1);
         }
 
-        Trees::SearchTree<int> set{};
-
-        char id = 0;
-        while (file >> id)
+        try
         {
-            get_info::handler (id, file, res, set);
+            Trees::SearchTree<int> set{};
+
+            char id = 0;
+            while (file >> id)
+            {
+                get_info::handler (id, file, res, set);
+            }
         }
+        catch (std::exception& expt) { res.push_back(error_id); }
 
         file.close();
     }

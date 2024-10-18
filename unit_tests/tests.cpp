@@ -25,3 +25,8 @@ TEST(test4, keys100000_req100)
 {
 	test_funcs::run_test("/test4/keys100000_req100");
 }
+
+TEST(test5, keys0_req2)
+{
+	test_funcs::run_test("/test5/keys0_req2");
+}
