@@ -23,17 +23,13 @@ namespace test_funcs
             exit(1);
         }
 
-        try
-        {
-            Trees::SearchTree<int> set{};
+        Trees::SearchTree<int> set{};
 
-            char id = 0;
-            while (file >> id)
-            {
-                get_info::handler (id, file, res, set);
-            }
+        char id = 0;
+        while (file >> id)
+        {
+            get_info::handler (id, file, res, set);
         }
-        catch (std::exception& expt) { res.push_back(error_id); }
 
         file.close();
     }

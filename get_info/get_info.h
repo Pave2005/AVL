@@ -18,14 +18,21 @@ namespace get_info
         }
         else if (id == 'q')
         {
-            if (set.empty()) throw std::runtime_error("The tree is empty");
-
             int first = 0;
             int second = 0;
 
             if (!(stream >> first >> second)) throw std::runtime_error("incorrect border value in request");
 
-            if (first > second) throw std::runtime_error("The left border can not be greater then right");
+            if (set.empty())
+            {
+                buff.push_back(0);
+                return;
+            }
+            else if (first > second)
+            {
+                buff.push_back(0);
+                return;
+            }
 
             auto res = std::distance(set.lower_bound (first), set.upper_bound (second));
             buff.push_back(res);

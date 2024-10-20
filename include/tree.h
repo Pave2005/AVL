@@ -198,7 +198,6 @@ namespace Trees
                 node->right_ = insert_node (key, node->right_);
                 node->right_->parent_ = node;
             }
-            else throw std::runtime_error("Keys should not be repeated");
 
             return balance (node);
         }
