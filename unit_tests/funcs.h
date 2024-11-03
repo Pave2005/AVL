@@ -19,8 +19,7 @@ namespace test_funcs
         std::ifstream file(filename);
         if (!file)
         {
-            std::cout << "error\n";
-            exit(1);
+            throw std::runtime_error("file error");
         }
 
         Trees::SearchTree<int> set{};
@@ -54,20 +53,28 @@ namespace test_funcs
 
 	void run_test (const std::string& test_name)
 	{
-		std::string test_directory = "/tests";
-
-		std::string test_path = std::string(TEST_DATA_DIR) + test_directory + test_name;
-
-        std::vector<int> res;
-		get_result(test_path + ".dat", res);
-
-        std::vector<int> ans;
-		get_answer(test_path + ".ans", ans);
-
-        EXPECT_TRUE(res.size() == ans.size());
-        for (int i = 0; i < ans.size(); i++)
+        try
         {
-            EXPECT_EQ(res[i], ans[i]);
+            std::string test_directory = "/tests";
+
+            std::string test_path = std::string(TEST_DATA_DIR) + test_directory + test_name;
+
+            std::vector<int> res;
+            get_result(test_path + ".dat", res);
+
+            std::vector<int> ans;
+            get_answer(test_path + ".ans", ans);
+
+            EXPECT_TRUE(res.size() == ans.size());
+            for (int i = 0; i < ans.size(); i++)
+            {
+                EXPECT_EQ(res[i], ans[i]);
+            }
+        }
+        catch (const char* error_message)
+        {
+            std::cout << error_message << std::endl;
+            exit (1);
         }
 	}
 }

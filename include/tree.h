@@ -1,7 +1,6 @@
 #pragma once
 
 #include <iostream>
-#include <new>
 #include <algorithm>
 #include <vector>
 #include <stack>
@@ -9,6 +8,7 @@
 #include <fstream>
 #include <cstdlib>
 #include <stdexcept>
+#include <memory>
 
 namespace Trees
 {
@@ -20,9 +20,9 @@ namespace Trees
         {
             T key_;
 
-            Node* parent_ = nullptr;
-            Node* left_   = nullptr;
-            Node* right_  = nullptr;
+            std::shared_ptr<Node> parent_ = nullptr;
+            std::shared_ptr<Node> left_   = nullptr;
+            std::shared_ptr<Node> right_  = nullptr;
 
             int indx_          = -1;
             int height_        =  1;
@@ -37,10 +37,14 @@ namespace Trees
                 balanceFactor_  = leftHeight - rightHeight;
                 height_         = std::max(leftHeight, rightHeight) + 1;
             }
+
+            std::partial_ordering operator<=> (const T& rhs) { return rhs <=> key_; }
         };
 
-        std::vector <Node*> nodes_ {};
-        Node* root_ = nullptr;
+        std::vector <std::shared_ptr<Node>> nodes_ {};
+        std::shared_ptr<Node> root_ = nullptr;
+
+        std::shared_ptr<Node> first_elem_ = nullptr;
 
     public:
         SearchTree () : nodes_({}), root_(nullptr) {}
@@ -50,10 +54,7 @@ namespace Trees
             for (auto&& elem : data) insert (elem);
         }
 
-        ~SearchTree ()
-        {
-            for (auto* node : nodes_) delete node;
-        }
+        ~SearchTree () {}
 
 // -----
         void tree_swap (SearchTree& rhs)
@@ -64,13 +65,14 @@ namespace Trees
 
         SearchTree (const SearchTree& rhs) : nodes_(rhs.nodes_.size()), root_(nullptr)
         {
-            std::vector <Node*> tmp_nodes_ {};
+            std::vector <std::shared_ptr<Node>> tmp_nodes_ {};
 
             tmp_nodes_.reserve(rhs.nodes_.size());
 
             for (int i = 0; i < rhs.nodes_.size(); i++)
             {
-                tmp_nodes_.emplace_back(new Node {rhs.nodes_[i]->key_ });
+                std::shared_ptr<Node> node {std::make_shared<Node>(rhs.nodes_[i]->key_)};
+                tmp_nodes_.emplace_back(node);
                 tmp_nodes_[i]->indx_ = i;
             }
 
@@ -86,13 +88,13 @@ namespace Trees
                     node->right_ = nodes_[rhs.nodes_[node->indx_]->right_->indx_];
             }
 
-            Node* tmp_root_ = nodes_[rhs.root_->indx_];
+            std::shared_ptr<Node> tmp_root_ = nodes_[rhs.root_->indx_];
 
             std::swap(tmp_nodes_, nodes_);
             std::swap(tmp_root_, root_);
         }
 
-        SearchTree& operator= (SearchTree& rhs)
+        SearchTree& operator= (const SearchTree& rhs)
         {
             if (this != &rhs)
             {
@@ -116,9 +118,9 @@ namespace Trees
         bool empty () const { return nodes_.empty(); }
 
 // -----
-        Node* rotate_left (Node* node)
+        std::shared_ptr<Node> rotate_left (std::shared_ptr<Node> node)
         {
-            Node* tmp    = node->right_;
+            std::shared_ptr<Node> tmp = node->right_;
             tmp->parent_ = node->parent_;
 
             node->right_ = tmp->left_;
@@ -135,9 +137,9 @@ namespace Trees
             return tmp;
         }
 
-        Node* rotate_right (Node* node)
+        std::shared_ptr<Node> rotate_right (std::shared_ptr<Node> node)
         {
-            Node* tmp = node->left_;
+            std::shared_ptr<Node> tmp = node->left_;
             tmp->parent_ = node->parent_;
 
             node->left_ = tmp->right_;
@@ -154,7 +156,7 @@ namespace Trees
             return tmp;
         }
 
-        Node* balance (Node* node)
+        std::shared_ptr<Node> balance (std::shared_ptr<Node> node)
         {
             node->update ();
 
@@ -178,13 +180,17 @@ namespace Trees
         }
 
 // -----
-        Node* insert_node (T key, Node* node)
+        std::shared_ptr<Node> insert_node (T key, std::shared_ptr<Node> node)
         {
             if (!node)
             {
-                node = new Node {key};
+                node = std::make_shared<Node>(key);
                 node->indx_ = nodes_.size();
                 nodes_.push_back(node);
+
+                first_elem_ = (!first_elem_) ? node : first_elem_;
+                first_elem_ = (first_elem_->key_ > key) ? node : first_elem_;
+
                 return node;
             }
 
@@ -202,7 +208,7 @@ namespace Trees
             return balance (node);
         }
 
-        Node* extract_min (Node* node)
+        std::shared_ptr<Node> extract_min (std::shared_ptr<Node> node)
         {
             if (node->left_)
             {
@@ -212,18 +218,16 @@ namespace Trees
             return node->right_;
         }
 
-        Node* extract_node (T key, Node* node)
+        std::shared_ptr<Node> extract_node (T key, std::shared_ptr<Node> node)
         {
             if (!node) return nullptr;
 
-            if (key < node->key_)
-                node->left_ = extract_node (key, node->left_);
-            else if (key > node->key_)
-                node->right_ = extract_node (key, node->right_);
+            if (key < node->key_)      node->left_ = extract_node (key, node->left_);
+            else if (key > node->key_) node->right_ = extract_node (key, node->right_);
             else
             {
-                Node* left  = node->left_;
-                Node* right = node->right_;
+                std::shared_ptr<Node> left  = node->left_;
+                std::shared_ptr<Node> right = node->right_;
 
                 nodes_.back()->indx_ = node->indx_;
                 nodes_[node->indx_] = nodes_.back();
@@ -231,11 +235,9 @@ namespace Trees
 
                 if (node == root_) root_ = nullptr;
 
-                delete node;
-
                 if (!right) return left;
 
-                Node* min = right;
+                std::shared_ptr<Node> min = right;
                 for (; min->left_ != nullptr; min = min->left_);
 
                 min->right_ = extract_min (right);
@@ -247,177 +249,148 @@ namespace Trees
 
         void insert (T key)
         {
-            try
-            {
-                Node* inserted_node = insert_node (key, root_);
-                if (nodes_.size() == 1) root_ = inserted_node;
-            }
-            catch (const char* error_message)
-            {
-                std::cout << error_message << std::endl;
-                exit (1);
-            }
+            std::shared_ptr<Node> inserted_node = insert_node (key, root_);
+            if (nodes_.size() == 1) root_ = inserted_node;
         }
 
         void extract (const T& key)
         {
-            Node* extracted_node = extract_node (key, root_);
+            std::shared_ptr<Node> extracted_node = extract_node (key, root_);
             if (!root_) root_ = extracted_node;
         }
 
 // -----
         class iterator;
-        friend iterator get_iterator (const SearchTree* tree, Node* node, std::stack <Node*>&& prevStack);
 
-        iterator begin ()
+        iterator begin () const { return iterator {this, first_elem_}; }
+        iterator end   () const { return iterator {this, nullptr};     }
+
+        iterator lower_bound (const T& key) const
         {
-            Node* res = root_;
-            std::stack<Node*> prevStack {};
+            std::shared_ptr<Node> node = root_;
+            std::shared_ptr<Node> res  = nullptr;
 
-            if (res != nullptr)
-                for (; res->left_ != nullptr; res = res->left_)
-                    prevStack.push(res);
-
-            return get_iterator (this, res, std::move(prevStack));
-        }
-
-        iterator end ()
-        {
-            std::stack<Node*> prevStack {};
-            return get_iterator (this, nullptr, std::move(prevStack));
-        }
-
-        iterator lower_bound (const T& key)
-        {
-            Node* cur  = root_;
-            Node* prev = nullptr;
-            bool prevMoveIsLeft = false;
-            std::stack<Node*> prevStack{};
-
-            while (cur)
+            while (node)
             {
-                if (key < cur->key_)
+                if (node->key_ >= key)
                 {
-                    prev = cur;
-                    prevStack.push(cur);
-                    cur = cur->left_;
-
-                    prevMoveIsLeft = true;
+                    res = node;
+                    node = node->left_;
                 }
-                else if (key > cur->key_)
-                {
-                    prev = cur;
-                    cur = cur->right_;
-
-                    prevMoveIsLeft = false;
-                }
-                else
-                {
-                    return get_iterator (this, cur, std::move(prevStack));
-                }
+                else node = node->right_;
             }
 
-            if (!prevStack.empty() && prevMoveIsLeft) prevStack.pop();
-
-            iterator res = get_iterator (this, prev, std::move(prevStack));
-
-            return (prev->key_ > key) ? res : ++res;
+            return iterator {this, res};
         }
 
-        iterator upper_bound (const T& key)
+        iterator upper_bound (const T& key) const
         {
-            iterator res = lower_bound (key);
+            std::shared_ptr<Node> node = root_;
+            std::shared_ptr<Node> res  = nullptr;
 
-            if (res && *res == key) ++res;
+            while (node)
+            {
+                if (node->key_ > key)
+                {
+                    res = node;
+                    node = node->left_;
+                }
+                else node = node->right_;
+            }
 
-            return res;
+            return iterator {this, res};
         }
 
         class iterator
         {
         private:
             SearchTree* tree_ = nullptr;
-            Node* node_ = nullptr;
-            std::stack<Node*> prevStack_ {};
+            std::shared_ptr<Node> node_;
 
-            iterator (const SearchTree* tree, Node* node, std::stack <Node*>&& prevStack) :
-                     tree_(const_cast<SearchTree*>(tree)),
-                     node_(node)
+            void advance_fwd ()
             {
-                std::swap(prevStack, prevStack_);
-                Node* cur = node;
-
-                if (cur) cur = cur->right_;
-
-                while (cur)
+                if (node_->right_)
                 {
-                    prevStack_.push(cur);
-                    cur = cur->left_;
-                }
-            }
-
-            friend iterator get_iterator (const SearchTree* tree, Node* node, std::stack <Node*>&& prevStack)
-            {
-                return iterator {tree, node, std::move(prevStack)};
-            }
-
-        public:
-            using iterator_category = std::forward_iterator_tag;
-            using value_type = T;
-            using difference_type = std::ptrdiff_t;
-            using pointer = Node*;
-            using reference = T&;
-
-            iterator() : node_ (nullptr), tree_ (nullptr) {}
-
-            explicit operator bool () { return node_; }
-
-            const T operator* () const
-            {
-                if (node_) { return node_->key_; }
-
-                throw std::runtime_error("null pointer dereference");
-                return 0;
-            }
-
-            const T* operator-> () const { return node_; }
-
-            iterator operator++ ()
-            {
-                if (!prevStack_.empty())
-                {
-                    node_ = prevStack_.top();
-                    prevStack_.pop();
-
-                    for (Node* cur = node_->right_; cur != nullptr; cur = cur->left_)
-                    {
-                        prevStack_.push(cur);
-                    }
+                    node_ = node_->right_;
+                    while (node_->left_) node_ = node_->left_;
                 }
                 else
                 {
-                    node_ = nullptr;
+                    std::shared_ptr<Node> parent = node_->parent_;
+                    while (parent && node_ == parent->right_)
+                    {
+                        node_ = parent;
+                        parent = parent->parent_;
+                    }
+                    node_ = parent;
                 }
+            }
 
+            void advance_bwd ()
+            {
+                if (node_->left_)
+                {
+                    node_ = node_->left_;
+                    while (node_->right_) node_ = node_->right_;
+                }
+                else
+                {
+                    std::shared_ptr<Node> parent = node_->parent_;
+                    while (parent && node_ == parent->left_)
+                    {
+                        node_ = parent;
+                        parent = parent->parent_;
+                    }
+                    node_ = parent;
+                }
+            }
+
+        public:
+            using iterator_category = std::bidirectional_iterator_tag;
+            using value_type = T;
+            using difference_type = std::ptrdiff_t;
+            using pointer = std::shared_ptr<Node>;
+            using reference = T&;
+
+            explicit iterator (const SearchTree* tree, std::shared_ptr<Node> node) : tree_(const_cast<SearchTree*>(tree)), node_(node) {}
+
+            explicit operator bool () { return node_; }
+
+            const T& operator* () const
+            {
+                if (node_) return node_->key_;
+
+                throw std::runtime_error("null pointer dereference");
+            }
+
+            iterator& operator++ ()
+            {
+                advance_fwd ();
                 return *this;
             }
 
             iterator operator++ (int)
             {
-                iterator res = *this;
+                auto tmp = *this;
                 (*this)++;
-                return res;
+                return tmp;
             }
 
-            friend bool operator== (const iterator& lhs, const iterator& rhs)
+            iterator& operator-- ()
             {
-                return lhs.node_ == rhs.node_;
+                advance_bwd ();
+                return *this;
             }
 
-            friend bool operator!= (const iterator& lhs, const iterator& rhs)
+            iterator operator-- (int)
             {
-                return !(lhs == rhs);
+                auto tmp = *this;
+                (*this)--;
+                return tmp;
             }
+
+            bool operator== (const iterator& rhs) const { return node_ == rhs.node_; }
+            bool operator!= (const iterator& rhs) const { return node_ != rhs.node_; }
         };
 
 // -----
@@ -425,12 +398,9 @@ namespace Trees
         {
             std::ofstream file(filename);
             file << "digraph G {" << std::endl << "node [shape = record];" << std::endl;
-            if (root_)
-            {
-                file << root_->indx_ << "[shape = doubleoctagon, style = filled, fillcolor = cornflowerblue "
-                                        "label = \"" << root_->key_ << "\"]" << std::endl;
-                node_dump (file, root_);
-            }
+
+            if (root_) node_dump (file, root_);
+
             file << "}";
             file.close();
 
@@ -438,22 +408,28 @@ namespace Trees
             std::system (command.c_str());
         }
 
-        void node_dump (std::ofstream& file, Node* node) const
+        void node_dump (std::ofstream& file, std::shared_ptr<Node> root) const
         {
-            if (!node) { return; }
-            if (node->left_)
+            if (!root) return;
+
+            std::stack<std::shared_ptr<Node>> stack;
+            stack.push(root);
+
+            bool is_root = true;
+            while (!stack.empty())
             {
-                file << node->left_->indx_ << "[shape = doubleoctagon, style = filled, fillcolor = cornflowerblue "
-                                              "label = \"" << node->left_->key_ << "\"]" << std::endl;
-                file << node->indx_ << " -> " << node->left_->indx_ << std::endl;
-                node_dump (file, node->left_);
-            }
-            if (node->right_)
-            {
-                file << node->right_->indx_ << "[shape = doubleoctagon, style = filled, fillcolor = cornflowerblue "
-                                               "label = \"" << node->right_->key_ << "\"]" << std::endl;
-                file << node->indx_ << " -> " << node->right_->indx_ << std::endl;
-                node_dump (file, node->right_);
+                std::shared_ptr<Node> node = stack.top();
+
+                file << node->indx_ << "[shape = doubleoctagon, style = filled, fillcolor = cornflowerblue "
+                                       "label = \"" << node->key_ << "\"]" << std::endl;
+
+                if (!is_root) file << node->parent_->indx_ << " -> " << node->indx_ << std::endl;
+                else          is_root = false;
+
+                stack.pop();
+
+                if (node->right_) stack.push(node->right_);
+                if (node->left_)  stack.push(node->left_);
             }
         }
     };
