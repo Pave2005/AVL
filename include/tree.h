@@ -9,10 +9,11 @@
 #include <cstdlib>
 #include <stdexcept>
 #include <memory>
+#include <functional>
 
 namespace Trees
 {
-    template <typename T>
+    template <typename T, class Compare = std::less<T>>
     class SearchTree
     {
     private:
@@ -28,7 +29,7 @@ namespace Trees
             int height_        =  1;
             int balanceFactor_ =  0;
 
-            Node(T key) : key_(key) {}
+            Node(const T& key) : key_(key) {}
 
             void update ()
             {
@@ -37,14 +38,20 @@ namespace Trees
                 balanceFactor_  = leftHeight - rightHeight;
                 height_         = std::max(leftHeight, rightHeight) + 1;
             }
-
-            std::partial_ordering operator<=> (const T& rhs) { return rhs <=> key_; }
         };
 
         std::vector <std::shared_ptr<Node>> nodes_ {};
         std::shared_ptr<Node> root_ = nullptr;
 
         std::shared_ptr<Node> first_elem_ = nullptr;
+
+        Compare key_compare;
+
+        void tree_swap (SearchTree& rhs)
+        {
+            std::swap(this->root_, rhs.root_);
+            std::swap(this->nodes_, rhs.nodes_);
+        }
 
     public:
         SearchTree () : nodes_({}), root_(nullptr) {}
@@ -55,13 +62,6 @@ namespace Trees
         }
 
         ~SearchTree () {}
-
-// -----
-        void tree_swap (SearchTree& rhs)
-        {
-            std::swap(this->root_, rhs.root_);
-            std::swap(this->nodes_, rhs.nodes_);
-        }
 
         SearchTree (const SearchTree& rhs) : nodes_(rhs.nodes_.size()), root_(nullptr)
         {
@@ -118,6 +118,7 @@ namespace Trees
         bool empty () const { return nodes_.empty(); }
 
 // -----
+    private:
         std::shared_ptr<Node> rotate_left (std::shared_ptr<Node> node)
         {
             std::shared_ptr<Node> tmp = node->right_;
@@ -180,7 +181,8 @@ namespace Trees
         }
 
 // -----
-        std::shared_ptr<Node> insert_node (T key, std::shared_ptr<Node> node)
+    private:
+        std::shared_ptr<Node> insert_node (const T& key, std::shared_ptr<Node> node)
         {
             if (!node)
             {
@@ -188,18 +190,18 @@ namespace Trees
                 node->indx_ = nodes_.size();
                 nodes_.push_back(node);
 
-                first_elem_ = (!first_elem_) ? node : first_elem_;
-                first_elem_ = (first_elem_->key_ > key) ? node : first_elem_;
+                first_elem_ = (!first_elem_)                        ? node : first_elem_;
+                first_elem_ = (key_compare(key, first_elem_->key_)) ? node : first_elem_;
 
                 return node;
             }
 
-            if (key < node->key_)
+            if (key_compare(key, node->key_))
             {
                 node->left_ = insert_node (key, node->left_);
                 node->left_->parent_ = node;
             }
-            else if (key > node->key_)
+            else if (key_compare(node->key_, key))
             {
                 node->right_ = insert_node (key, node->right_);
                 node->right_->parent_ = node;
@@ -208,6 +210,7 @@ namespace Trees
             return balance (node);
         }
 
+    public:
         std::shared_ptr<Node> extract_min (std::shared_ptr<Node> node)
         {
             if (node->left_)
@@ -218,12 +221,12 @@ namespace Trees
             return node->right_;
         }
 
-        std::shared_ptr<Node> extract_node (T key, std::shared_ptr<Node> node)
+        std::shared_ptr<Node> extract_node (const T& key, std::shared_ptr<Node> node)
         {
             if (!node) return nullptr;
 
-            if (key < node->key_)      node->left_ = extract_node (key, node->left_);
-            else if (key > node->key_) node->right_ = extract_node (key, node->right_);
+            if (key_compare(key, node->key_))      node->left_  = extract_node (key, node->left_);
+            else if (key_compare(node->key_, key)) node->right_ = extract_node (key, node->right_);
             else
             {
                 std::shared_ptr<Node> left  = node->left_;
@@ -247,7 +250,7 @@ namespace Trees
             }
         }
 
-        void insert (T key)
+        void insert (const T& key)
         {
             std::shared_ptr<Node> inserted_node = insert_node (key, root_);
             if (nodes_.size() == 1) root_ = inserted_node;
@@ -262,8 +265,8 @@ namespace Trees
 // -----
         class iterator;
 
-        iterator begin () const { return iterator {this, first_elem_}; }
-        iterator end   () const { return iterator {this, nullptr};     }
+        iterator begin () const { return iterator {first_elem_}; }
+        iterator end   () const { return iterator {nullptr};     }
 
         iterator lower_bound (const T& key) const
         {
@@ -280,7 +283,7 @@ namespace Trees
                 else node = node->right_;
             }
 
-            return iterator {this, res};
+            return iterator {res};
         }
 
         iterator upper_bound (const T& key) const
@@ -298,13 +301,12 @@ namespace Trees
                 else node = node->right_;
             }
 
-            return iterator {this, res};
+            return iterator {res};
         }
 
         class iterator
         {
         private:
-            SearchTree* tree_ = nullptr;
             std::shared_ptr<Node> node_;
 
             void advance_fwd ()
@@ -352,7 +354,7 @@ namespace Trees
             using pointer = std::shared_ptr<Node>;
             using reference = T&;
 
-            explicit iterator (const SearchTree* tree, std::shared_ptr<Node> node) : tree_(const_cast<SearchTree*>(tree)), node_(node) {}
+            explicit iterator (const std::shared_ptr<Node> node) : node_(node) {}
 
             explicit operator bool () { return node_; }
 
