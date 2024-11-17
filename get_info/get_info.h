@@ -34,7 +34,7 @@ namespace get_info
                 return;
             }
 
-            auto res = std::distance(set.lower_bound (first), set.upper_bound (second));
+            auto res = std::distance(set.lower_bound(first), set.upper_bound(second));
             buff.push_back(res);
         }
         else
