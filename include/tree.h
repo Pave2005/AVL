@@ -65,30 +65,33 @@ namespace Trees
 
         ~SearchTree ()
         {
-            if (root_)
+            Node* node_ptr = root_.get();
+
+            if (node_ptr)
             {
-                std::queue<std::unique_ptr<Node>*> queue;
-                std::stack<std::unique_ptr<Node>*> stack;
-
-                queue.push(&root_);
-                while (!queue.empty())
+                while (true)
                 {
-                    std::unique_ptr<Node>& node = *(queue.front());
-                    stack.push(&node);
-                    queue.pop();
+                    while (node_ptr->left_) node_ptr = node_ptr->left_.get();
 
-                    std::unique_ptr<Node>& node_left  = node->left_;
-                    std::unique_ptr<Node>& node_right = node->right_;
+                    if (!node_ptr->right_)
+                    {
+                        while (!node_ptr->right_ && node_ptr->parent_)
+                        {
+                            node_ptr = node_ptr->parent_;
+                            if (node_ptr->left_)  node_ptr->left_.reset();
+                            else if (node_ptr->right_) node_ptr->right_.reset();
+                        }
 
-                    if (node_left)  queue.push(&node_left);
-                    if (node_right) queue.push(&node_right);
-                }
+                        if (!node_ptr->right_ && !node_ptr->parent_)
+                            break;
 
-                while (!stack.empty())
-                {
-                    std::unique_ptr<Node>& node = *(stack.top());
-                    node.reset();
-                    stack.pop();
+                        if (node_ptr->right_)
+                            node_ptr = node_ptr->right_.get();
+                    }
+                    else
+                    {
+                        node_ptr = node_ptr->right_.get();
+                    }
                 }
             }
         }
@@ -97,50 +100,49 @@ namespace Trees
         {
             if (rhs.root_)
             {
-                std::queue<const std::unique_ptr<Node>*> queue;
+                std::queue<Node*> queue;
 
                 std::unique_ptr<Node> tmp_root_ = std::make_unique<Node>(rhs.root_->key_);
                 tmp_root_->indx_ = rhs.root_->indx_;
 
-                queue.push(&(rhs.root_));
-                queue.push(&(tmp_root_));
+                queue.push(rhs.root_.get());
+                queue.push(tmp_root_.get());
 
                 while (!queue.empty())
                 {
-                    const std::unique_ptr<Node>& node     = *(queue.front());
+                    Node* node     = queue.front();
                     queue.pop();
-                    const std::unique_ptr<Node>& tmp_node = *(queue.front());
+                    Node* tmp_node = queue.front();
                     queue.pop();
 
-                    const std::unique_ptr<Node>& node_left  = node->left_;
-                    const std::unique_ptr<Node>& node_right = node->right_;
+                    Node* node_left  = node->left_.get();
+                    Node* node_right = node->right_.get();
 
                     if (node_left)
                     {
                         tmp_node->left_ = std::make_unique<Node>(node_left->key_);
                         tmp_node->left_->indx_   = node_left->indx_;
-                        tmp_node->left_->parent_ = tmp_node.get();
+                        tmp_node->left_->parent_ = tmp_node;
 
-                        queue.push(&(node_left));
-                        queue.push(&(tmp_node->left_));
+                        queue.push(node_left);
+                        queue.push(tmp_node->left_.get());
                     }
 
                     if (node_right)
                     {
                         tmp_node->right_ = std::make_unique<Node>(node_right->key_);
                         tmp_node->right_->indx_   = node_right->indx_;
-                        tmp_node->right_->parent_ = tmp_node.get();
+                        tmp_node->right_->parent_ = tmp_node;
 
-                        queue.push(&(node_right));
-                        queue.push(&(tmp_node->right_));
+                        queue.push(node_right);
+                        queue.push(tmp_node->right_.get());
                     }
                 }
 
                 size_t tmp_size_ = rhs.size_;
 
-                std::unique_ptr<Node>* tmp = &(tmp_root_);
-                while (((*tmp).get())->left_) tmp = &(((*tmp).get())->left_);
-                Node* tmp_first_elem_ = (*tmp).get();
+                Node* tmp_first_elem_ = tmp_root_.get();
+                while (tmp_first_elem_->left_) tmp_first_elem_ = tmp_first_elem_->left_.get();
 
                 std::swap(tmp_size_, size_);
                 std::swap(tmp_root_, root_);
