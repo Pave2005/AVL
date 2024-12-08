@@ -4,6 +4,7 @@
 #include <string>
 #include <fstream>
 #include <vector>
+#include <string_view>
 
 #include <gtest/gtest.h>
 
@@ -14,9 +15,9 @@ namespace test_funcs
 {
     const int error_id = -1;
 
-	void get_result (const std::string& filename, std::vector<int>& res)
+	void get_result (std::string_view filename, std::vector<int>& res)
     {
-        std::ifstream file(filename);
+        std::ifstream file(filename.data());
         if (!file)
         {
             throw std::runtime_error("file error");
@@ -33,9 +34,9 @@ namespace test_funcs
         file.close();
     }
 
-    void get_answer(const std::string& filename, std::vector<int>& ans)
+    void get_answer(std::string_view filename, std::vector<int>& ans)
     {
-        std::ifstream answer_file(filename);
+        std::ifstream answer_file(filename.data());
 
         int count = 0;
         answer_file >> count;
@@ -51,13 +52,14 @@ namespace test_funcs
         answer_file.close();
     }
 
-	void run_test (const std::string& test_name)
+	void run_test (std::string_view test_name)
 	{
         try
         {
             std::string test_directory = "/tests";
 
-            std::string test_path = std::string(TEST_DATA_DIR) + test_directory + test_name;
+            std::string test_path = std::string(TEST_DATA_DIR) + test_directory;
+            test_path.append(test_name);
 
             std::vector<int> res;
             get_result(test_path + ".dat", res);

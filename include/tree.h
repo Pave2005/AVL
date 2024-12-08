@@ -11,6 +11,8 @@
 #include <stdexcept>
 #include <memory>
 #include <functional>
+#include <string_view>
+#include <utility>
 
 namespace Trees
 {
@@ -30,7 +32,28 @@ namespace Trees
             int height_        =  1;
             int balanceFactor_ =  0;
 
-            Node(const T& key) : key_(key) {}
+            Node (const T& key) : key_(key) {}
+
+            Node (const Node& rhs)
+            {
+                T   tmp_key_           = rhs.key_;
+
+                int tmp_indx_          = rhs.indx_;
+                int tmp_height_        = rhs.height_;
+                int tmp_balanceFactor_ = rhs.balanceFactor_;
+
+                std::swap(tmp_key_, key_);
+                std::swap(tmp_indx_, indx_);
+                std::swap(tmp_height_, height_);
+                std::swap(tmp_balanceFactor_, balanceFactor_);
+            }
+
+            Node& operator= (const Node& rhs)
+            {
+                if (this != &rhs) Node tmp {rhs};
+
+                return *this;
+            }
 
             void update ()
             {
@@ -55,6 +78,16 @@ namespace Trees
             std::swap(this->first_elem_, rhs.first_elem_);
         }
 
+        void copy_tree_node (std::unique_ptr<Node>& dest, std::unique_ptr<Node>& src,
+                             Node*           dest_parent, std::queue<Node*>&   queue)
+        {
+            dest = std::make_unique<Node>(*src);
+            dest->parent_ = dest_parent;
+
+            queue.push(src.get());
+            queue.push(dest.get());
+        }
+
     public:
         SearchTree () : root_(nullptr) {}
 
@@ -67,96 +100,68 @@ namespace Trees
         {
             Node* node_ptr = root_.get();
 
-            if (node_ptr)
+            if (!node_ptr) return;
+
+            while (node_ptr->left_ || node_ptr->right_ || node_ptr->parent_)
             {
-                while (true)
+                while (node_ptr->left_) node_ptr = node_ptr->left_.get();
+
+                if (!node_ptr->right_)
                 {
-                    while (node_ptr->left_) node_ptr = node_ptr->left_.get();
-
-                    if (!node_ptr->right_)
+                    while (!node_ptr->right_ && node_ptr->parent_)
                     {
-                        while (!node_ptr->right_ && node_ptr->parent_)
-                        {
-                            node_ptr = node_ptr->parent_;
-                            if (node_ptr->left_)  node_ptr->left_.reset();
-                            else if (node_ptr->right_) node_ptr->right_.reset();
-                        }
-
-                        if (!node_ptr->right_ && !node_ptr->parent_)
-                            break;
-
-                        if (node_ptr->right_)
-                            node_ptr = node_ptr->right_.get();
+                        node_ptr = node_ptr->parent_;
+                        if (node_ptr->left_)  node_ptr->left_.reset();
+                        else if (node_ptr->right_) node_ptr->right_.reset();
                     }
-                    else
-                    {
+
+                    if (node_ptr->right_)
                         node_ptr = node_ptr->right_.get();
-                    }
+                }
+                else
+                {
+                    node_ptr = node_ptr->right_.get();
                 }
             }
         }
 
         SearchTree (const SearchTree& rhs) : root_(nullptr)
         {
-            if (rhs.root_)
+            if (!rhs.root_) return;
+
+            std::queue<Node*> queue;
+
+            std::unique_ptr<Node> tmp_root_ = std::make_unique<Node>(*(rhs.root_));
+            tmp_root_->indx_ = rhs.root_->indx_;
+
+            queue.push(rhs.root_.get());
+            queue.push(tmp_root_.get());
+
+            while (!queue.empty())
             {
-                std::queue<Node*> queue;
+                Node* node     = queue.front();
+                queue.pop();
+                Node* tmp_node = queue.front();
+                queue.pop();
 
-                std::unique_ptr<Node> tmp_root_ = std::make_unique<Node>(rhs.root_->key_);
-                tmp_root_->indx_ = rhs.root_->indx_;
-
-                queue.push(rhs.root_.get());
-                queue.push(tmp_root_.get());
-
-                while (!queue.empty())
-                {
-                    Node* node     = queue.front();
-                    queue.pop();
-                    Node* tmp_node = queue.front();
-                    queue.pop();
-
-                    Node* node_left  = node->left_.get();
-                    Node* node_right = node->right_.get();
-
-                    if (node_left)
-                    {
-                        tmp_node->left_ = std::make_unique<Node>(node_left->key_);
-                        tmp_node->left_->indx_   = node_left->indx_;
-                        tmp_node->left_->parent_ = tmp_node;
-
-                        queue.push(node_left);
-                        queue.push(tmp_node->left_.get());
-                    }
-
-                    if (node_right)
-                    {
-                        tmp_node->right_ = std::make_unique<Node>(node_right->key_);
-                        tmp_node->right_->indx_   = node_right->indx_;
-                        tmp_node->right_->parent_ = tmp_node;
-
-                        queue.push(node_right);
-                        queue.push(tmp_node->right_.get());
-                    }
-                }
-
-                size_t tmp_size_ = rhs.size_;
-
-                Node* tmp_first_elem_ = tmp_root_.get();
-                while (tmp_first_elem_->left_) tmp_first_elem_ = tmp_first_elem_->left_.get();
-
-                std::swap(tmp_size_, size_);
-                std::swap(tmp_root_, root_);
-                std::swap(tmp_first_elem_, first_elem_);
+                if (node->left_)  copy_tree_node (tmp_node->left_, node->left_, tmp_node, queue);
+                if (node->right_) copy_tree_node (tmp_node->right_, node->right_, tmp_node, queue);
             }
+
+            size_t tmp_size_ = rhs.size_;
+
+            Node* tmp_first_elem_ = tmp_root_.get();
+            while (tmp_first_elem_->left_) tmp_first_elem_ = tmp_first_elem_->left_.get();
+
+            std::swap(tmp_size_, size_);
+            std::swap(tmp_root_, root_);
+            std::swap(tmp_first_elem_, first_elem_);
         }
 
         SearchTree& operator= (const SearchTree& rhs)
         {
-            if (this != &rhs)
-            {
-                SearchTree tmp {rhs};
-                tree_swap (tmp);
-            }
+            if (this != &rhs) SearchTree tmp {rhs};
+
             return *this;
         }
 
@@ -267,6 +272,13 @@ namespace Trees
         void insert (const T& key)
         {
             std::unique_ptr<Node> inserted_node = insert_node(key, root_);
+            root_ = std::move(inserted_node);
+        }
+
+        template<class... Args>
+        void emplace (Args&&... args)
+        {
+            std::unique_ptr<Node> inserted_node = insert_node(T(std::forward<Args>(args)...), root_);
             root_ = std::move(inserted_node);
         }
 
@@ -404,9 +416,9 @@ namespace Trees
         };
 
 // -----
-        void tree_dump (const std::string& filename) const
+        void tree_dump (std::string_view filename) const
         {
-            std::ofstream file(filename);
+            std::ofstream file(filename.data());
             file << "digraph G {" << std::endl << "node [shape = record];" << std::endl;
 
             if (root_) node_dump(file);
@@ -414,7 +426,11 @@ namespace Trees
             file << "}";
             file.close();
 
-            std::string command = "dot -T png " + filename + " -o ./pic/tree.png";
+            std::string command;
+            command.append("dot -T png ");
+            command.append(filename);
+            command.append(" -o ./pic/tree.png");
+
             std::system (command.c_str());
         }
 
@@ -422,13 +438,13 @@ namespace Trees
         {
             if (!root_) return;
 
-            std::stack<const std::unique_ptr<Node>*> stack;
-            stack.push(&root_);
+            std::stack<Node*> stack;
+            stack.push(root_.get());
 
             bool is_root = true;
             while (!stack.empty())
             {
-                const std::unique_ptr<Node>& node = *(stack.top());
+                Node* node = stack.top();
 
                 file << node->indx_ << "[shape = doubleoctagon, style = filled, fillcolor = cornflowerblue "
                                        "label = \"" << node->key_ << "\"]" << std::endl;
@@ -438,8 +454,8 @@ namespace Trees
 
                 stack.pop();
 
-                if (node->right_) stack.push(&(node->right_));
-                if (node->left_)  stack.push(&(node->left_));
+                if (node->right_) stack.push(node->right_.get());
+                if (node->left_)  stack.push(node->left_.get());
             }
         }
     };
