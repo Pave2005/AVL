@@ -34,6 +34,9 @@ namespace Trees
 
             Node (const T& key) : key_(key) {}
 
+            template<class... Args>
+            Node (Args&&... key) : key_(std::forward<Args>(key)...) {}
+
             Node (const Node& rhs)
             {
                 T   tmp_key_           = rhs.key_;
@@ -78,23 +81,8 @@ namespace Trees
             std::swap(this->first_elem_, rhs.first_elem_);
         }
 
-        void copy_tree_node (std::unique_ptr<Node>& dest, std::unique_ptr<Node>& src,
-                             Node*           dest_parent, std::queue<Node*>&   queue)
-        {
-            dest = std::make_unique<Node>(*src);
-            dest->parent_ = dest_parent;
-
-            queue.push(src.get());
-            queue.push(dest.get());
-        }
-
     public:
         SearchTree () : root_(nullptr) {}
-
-        SearchTree (std::vector<T>& data) : root_(nullptr)
-        {
-            for (auto&& elem : data) insert(elem);
-        }
 
         ~SearchTree ()
         {
@@ -144,8 +132,22 @@ namespace Trees
                 Node* tmp_node = queue.front();
                 queue.pop();
 
-                if (node->left_)  copy_tree_node (tmp_node->left_, node->left_, tmp_node, queue);
-                if (node->right_) copy_tree_node (tmp_node->right_, node->right_, tmp_node, queue);
+                if (node->left_)
+                {
+                    tmp_node->left_ = std::make_unique<Node>(*(node->left_));
+                    tmp_node->left_->parent_ = tmp_node;
+
+                    queue.push(node->left_.get());
+                    queue.push(tmp_node->left_.get());
+                }
+                if (node->right_)
+                {
+                    tmp_node->right_ = std::make_unique<Node>(*(node->right_));
+                    tmp_node->right_->parent_ = tmp_node;
+
+                    queue.push(node->right_.get());
+                    queue.push(tmp_node->right_.get());
+                }
             }
 
             size_t tmp_size_ = rhs.size_;
@@ -240,29 +242,138 @@ namespace Trees
 
 // -----
     private:
+        std::unique_ptr<Node> create_node (const T& key)
+        {
+            std::unique_ptr<Node> new_node = std::make_unique<Node>(key);
+            new_node->indx_ = size_;
+            ++size_;
+
+            first_elem_ = (!first_elem_)                        ? new_node.get() : first_elem_;
+            first_elem_ = (key_compare(key, first_elem_->key_)) ? new_node.get() : first_elem_;
+
+            return std::move(new_node);
+        }
+
+        template<class... Args>
+        std::unique_ptr<Node> create_node (Args&&... key)
+        {
+            std::unique_ptr<Node> new_node = std::make_unique<Node>(std::forward<Args>(key)...);
+            new_node->indx_ = size_;
+            ++size_;
+
+            first_elem_ = (!first_elem_)                                   ? new_node.get() : first_elem_;
+            first_elem_ = (key_compare(new_node->key_, first_elem_->key_)) ? new_node.get() : first_elem_;
+
+            return std::move(new_node);
+        }
+
         std::unique_ptr<Node> insert_node (const T& key, std::unique_ptr<Node>& node)
         {
             if (!node)
             {
-                node = std::make_unique<Node>(key);
-                node->indx_ = size_;
-                ++size_;
-
-                first_elem_ = (!first_elem_)                        ? node.get() : first_elem_;
-                first_elem_ = (key_compare(key, first_elem_->key_)) ? node.get() : first_elem_;
-
+                node = create_node(key);
                 return std::move(node);
             }
 
-            if (key_compare(key, node->key_))
+            Node* curr_node_ptr = node.get();
+
+            while (true)
             {
-                node->left_ = insert_node(key, node->left_);
-                node->left_->parent_ = node.get();
+                if (key_compare(key, curr_node_ptr->key_))
+                {
+                    if (curr_node_ptr->left_)
+                    {
+                        curr_node_ptr = curr_node_ptr->left_.get();
+                    }
+                    else
+                    {
+                        curr_node_ptr->left_ = create_node(key);
+                        curr_node_ptr->left_->parent_ = curr_node_ptr;
+
+                        break;
+                    }
+                }
+                else if (key_compare(curr_node_ptr->key_, key))
+                {
+                    if (curr_node_ptr->right_)
+                    {
+                        curr_node_ptr = curr_node_ptr->right_.get();
+                    }
+                    else
+                    {
+                        curr_node_ptr->right_ = create_node(key);
+                        curr_node_ptr->right_->parent_ = curr_node_ptr;
+
+                        break;
+                    }
+                }
             }
-            else if (key_compare(node->key_, key))
+
+            while (curr_node_ptr != node.get())
             {
-                node->right_ = insert_node(key, node->right_);
-                node->right_->parent_ = node.get();
+                Node* parent = curr_node_ptr->parent_;
+
+                if (parent->left_)  parent->left_  = balance(parent->left_);
+                if (parent->right_) parent->right_ = balance(parent->right_);
+
+                curr_node_ptr = parent;
+            }
+
+            return balance(node);
+        }
+
+        template<class... Args>
+        std::unique_ptr<Node> emplace_node (std::unique_ptr<Node>& node, Args&&... key)
+        {
+            if (!node)
+            {
+                node = create_node(std::forward<Args>(key)...);
+                return std::move(node);
+            }
+
+            std::unique_ptr<Node> new_node = create_node(std::forward<Args>(key)...);
+            Node* curr_node_ptr = node.get();
+
+            while (true)
+            {
+                if (key_compare(new_node->key_, curr_node_ptr->key_))
+                {
+                    if (curr_node_ptr->left_)
+                    {
+                        curr_node_ptr = curr_node_ptr->left_.get();
+                    }
+                    else
+                    {
+                        curr_node_ptr->left_ = std::move(new_node);
+                        curr_node_ptr->left_->parent_ = curr_node_ptr;
+
+                        break;
+                    }
+                }
+                else if (key_compare(curr_node_ptr->key_, new_node->key_))
+                {
+                    if (curr_node_ptr->right_)
+                    {
+                        curr_node_ptr = curr_node_ptr->right_.get();
+                    }
+                    else
+                    {
+                        curr_node_ptr->right_ = std::move(new_node);
+                        curr_node_ptr->right_->parent_ = curr_node_ptr;
+
+                        break;
+                    }
+                }
+            }
+
+            while (curr_node_ptr != node.get())
+            {
+                Node* parent = curr_node_ptr->parent_;
+
+                if (parent->left_)  parent->left_  = balance(parent->left_);
+                if (parent->right_) parent->right_ = balance(parent->right_);
+
+                curr_node_ptr = parent;
             }
 
             return balance(node);
@@ -278,7 +389,7 @@ namespace Trees
         template<class... Args>
         void emplace (Args&&... args)
         {
-            std::unique_ptr<Node> inserted_node = insert_node(T(std::forward<Args>(args)...), root_);
+            std::unique_ptr<Node> inserted_node = emplace_node(root_, std::forward<Args>(args)...);
             root_ = std::move(inserted_node);
         }
 
