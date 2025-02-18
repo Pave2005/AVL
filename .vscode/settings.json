@@ -60,6 +60,20 @@
         "functional": "cpp",
         "iterator": "cpp",
         "memory_resource": "cpp",
-        "utility": "cpp"
+        "utility": "cpp",
+        "__errc": "cpp",
+        "__hash_table": "cpp",
+        "__mutex_base": "cpp",
+        "cctype": "cpp",
+        "clocale": "cpp",
+        "cstdarg": "cpp",
+        "ctime": "cpp",
+        "cwctype": "cpp",
+        "iomanip": "cpp",
+        "ratio": "cpp",
+        "set": "cpp",
+        "sstream": "cpp",
+        "variant": "cpp",
+        "chrono": "cpp"
     }
 }

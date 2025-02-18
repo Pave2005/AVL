@@ -39,21 +39,33 @@ namespace Trees
 
             Node (const Node& rhs)
             {
-                T   tmp_key_           = rhs.key_;
+                T   tmp_key_ = rhs.key_;
 
-                int tmp_indx_          = rhs.indx_;
-                int tmp_height_        = rhs.height_;
+                int tmp_indx_   = rhs.indx_;
+                int tmp_height_ = rhs.height_;
                 int tmp_balanceFactor_ = rhs.balanceFactor_;
 
-                std::swap(tmp_key_, key_);
-                std::swap(tmp_indx_, indx_);
-                std::swap(tmp_height_, height_);
-                std::swap(tmp_balanceFactor_, balanceFactor_);
+                key_    = tmp_key_;
+                indx_   = tmp_indx_;
+                height_ = tmp_height_;
+                balanceFactor_ = tmp_balanceFactor_;
+            }
+
+            void node_swap (Node& rhs)
+            {
+                std::swap(this->key_, rhs.key_);
+                std::swap(this->indx_, rhs.indx_);
+                std::swap(this->height_, rhs.height_);
+                std::swap(this->balanceFactor_, rhs.balanceFactor_);
             }
 
             Node& operator= (const Node& rhs)
             {
-                if (this != &rhs) Node tmp {rhs};
+                if (this != &rhs)
+                {
+                    Node tmp {rhs};
+                    node_swap (rhs);
+                }
 
                 return *this;
             }
@@ -99,12 +111,19 @@ namespace Trees
                     while (!node_ptr->right_ && node_ptr->parent_)
                     {
                         node_ptr = node_ptr->parent_;
-                        if (node_ptr->left_)  node_ptr->left_.reset();
-                        else if (node_ptr->right_) node_ptr->right_.reset();
+                        if (node_ptr->left_)
+                        {
+                            node_ptr->left_->parent_  = nullptr;
+                            node_ptr->left_           = nullptr;
+                        }
+                        else if (node_ptr->right_)
+                        {
+                            node_ptr->right_->parent_ = nullptr;
+                            node_ptr->right_          = nullptr;
+                        }
                     }
 
-                    if (node_ptr->right_)
-                        node_ptr = node_ptr->right_.get();
+                    if (node_ptr->right_) node_ptr = node_ptr->right_.get();
                 }
                 else
                 {
@@ -155,14 +174,18 @@ namespace Trees
             Node* tmp_first_elem_ = tmp_root_.get();
             while (tmp_first_elem_->left_) tmp_first_elem_ = tmp_first_elem_->left_.get();
 
-            std::swap(tmp_size_, size_);
-            std::swap(tmp_root_, root_);
-            std::swap(tmp_first_elem_, first_elem_);
+            size_ = tmp_size_;
+            root_ = tmp_root_;
+            first_elem_ = tmp_first_elem_;
         }
 
         SearchTree& operator= (const SearchTree& rhs)
         {
-            if (this != &rhs) SearchTree tmp {rhs};
+            if (this != &rhs)
+            {
+                SearchTree tmp {rhs};
+                tree_swap (tmp);
+            }
 
             return *this;
         }
@@ -240,6 +263,19 @@ namespace Trees
             return std::move(node);
         }
 
+        void rebalance (Node*& inserted_node, Node*& root)
+        {
+            while (inserted_node != root)
+            {
+                Node* parent = inserted_node->parent_;
+
+                if (parent->left_)  parent->left_  = balance(parent->left_);
+                if (parent->right_) parent->right_ = balance(parent->right_);
+
+                inserted_node = parent;
+            }
+        }
+
 // -----
     private:
         std::unique_ptr<Node> create_node (const T& key)
@@ -267,6 +303,40 @@ namespace Trees
             return std::move(new_node);
         }
 
+        void add_new_node (const T& key, std::unique_ptr<Node>& new_node, Node* curr_node_ptr)
+        {
+            bool left_less = false;
+
+            while ((left_less = key_compare(key, curr_node_ptr->key_)) && curr_node_ptr->left_ ||
+                    key_compare(curr_node_ptr->key_, key) && curr_node_ptr->right_)
+            {
+                if (left_less) curr_node_ptr = curr_node_ptr->left_.get();
+                else           curr_node_ptr = curr_node_ptr->right_.get();
+            }
+
+            if (left_less)
+            {
+                curr_node_ptr->left_ = std::move(new_node);
+                curr_node_ptr->left_->parent_ = curr_node_ptr;
+            }
+            else
+            {
+                curr_node_ptr->right_ = std::move(new_node);
+                curr_node_ptr->right_->parent_ = curr_node_ptr;
+            }
+        }
+
+        std::unique_ptr<Node> add_new_to_avl (const T& key, std::unique_ptr<Node>& new_node, std::unique_ptr<Node>& root__)
+        {
+            Node* curr_node_ptr = root__.get();
+            add_new_node (key, new_node, curr_node_ptr);
+
+            Node* root = root__.get();
+            rebalance(curr_node_ptr, root);
+
+            return balance(root__);
+        }
+
         std::unique_ptr<Node> insert_node (const T& key, std::unique_ptr<Node>& node)
         {
             if (!node)
@@ -275,51 +345,9 @@ namespace Trees
                 return std::move(node);
             }
 
-            Node* curr_node_ptr = node.get();
+            std::unique_ptr<Node> new_node = create_node(key);
 
-            while (true)
-            {
-                if (key_compare(key, curr_node_ptr->key_))
-                {
-                    if (curr_node_ptr->left_)
-                    {
-                        curr_node_ptr = curr_node_ptr->left_.get();
-                    }
-                    else
-                    {
-                        curr_node_ptr->left_ = create_node(key);
-                        curr_node_ptr->left_->parent_ = curr_node_ptr;
-
-                        break;
-                    }
-                }
-                else if (key_compare(curr_node_ptr->key_, key))
-                {
-                    if (curr_node_ptr->right_)
-                    {
-                        curr_node_ptr = curr_node_ptr->right_.get();
-                    }
-                    else
-                    {
-                        curr_node_ptr->right_ = create_node(key);
-                        curr_node_ptr->right_->parent_ = curr_node_ptr;
-
-                        break;
-                    }
-                }
-            }
-
-            while (curr_node_ptr != node.get())
-            {
-                Node* parent = curr_node_ptr->parent_;
-
-                if (parent->left_)  parent->left_  = balance(parent->left_);
-                if (parent->right_) parent->right_ = balance(parent->right_);
-
-                curr_node_ptr = parent;
-            }
-
-            return balance(node);
+            return add_new_to_avl (key, new_node, node);
         }
 
         template<class... Args>
@@ -332,51 +360,8 @@ namespace Trees
             }
 
             std::unique_ptr<Node> new_node = create_node(std::forward<Args>(key)...);
-            Node* curr_node_ptr = node.get();
 
-            while (true)
-            {
-                if (key_compare(new_node->key_, curr_node_ptr->key_))
-                {
-                    if (curr_node_ptr->left_)
-                    {
-                        curr_node_ptr = curr_node_ptr->left_.get();
-                    }
-                    else
-                    {
-                        curr_node_ptr->left_ = std::move(new_node);
-                        curr_node_ptr->left_->parent_ = curr_node_ptr;
-
-                        break;
-                    }
-                }
-                else if (key_compare(curr_node_ptr->key_, new_node->key_))
-                {
-                    if (curr_node_ptr->right_)
-                    {
-                        curr_node_ptr = curr_node_ptr->right_.get();
-                    }
-                    else
-                    {
-                        curr_node_ptr->right_ = std::move(new_node);
-                        curr_node_ptr->right_->parent_ = curr_node_ptr;
-
-                        break;
-                    }
-                }
-            }
-
-            while (curr_node_ptr != node.get())
-            {
-                Node* parent = curr_node_ptr->parent_;
-
-                if (parent->left_)  parent->left_  = balance(parent->left_);
-                if (parent->right_) parent->right_ = balance(parent->right_);
-
-                curr_node_ptr = parent;
-            }
-
-            return balance(node);
+            return add_new_to_avl (new_node->key_, new_node, node);
         }
 
     public:
