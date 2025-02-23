@@ -39,16 +39,10 @@ namespace Trees
 
             Node (const Node& rhs)
             {
-                T   tmp_key_ = rhs.key_;
-
-                int tmp_indx_   = rhs.indx_;
-                int tmp_height_ = rhs.height_;
-                int tmp_balanceFactor_ = rhs.balanceFactor_;
-
-                key_    = tmp_key_;
-                indx_   = tmp_indx_;
-                height_ = tmp_height_;
-                balanceFactor_ = tmp_balanceFactor_;
+                key_    = rhs.key_;
+                indx_   = rhs.indx_;
+                height_ = rhs.height_;
+                balanceFactor_ = rhs.balanceFactor_;
             }
 
             void node_swap (Node& rhs)
@@ -113,13 +107,11 @@ namespace Trees
                         node_ptr = node_ptr->parent_;
                         if (node_ptr->left_)
                         {
-                            node_ptr->left_->parent_  = nullptr;
-                            node_ptr->left_           = nullptr;
+                            node_ptr->left_.reset();
                         }
                         else if (node_ptr->right_)
                         {
-                            node_ptr->right_->parent_ = nullptr;
-                            node_ptr->right_          = nullptr;
+                            node_ptr->right_.reset();
                         }
                     }
 
@@ -138,7 +130,7 @@ namespace Trees
 
             std::queue<Node*> queue;
 
-            std::unique_ptr<Node> tmp_root_ = std::make_unique<Node>(*(rhs.root_));
+            std::unique_ptr<Node> tmp_root_ = std::make_unique<Node>((rhs.root_)->key_);
             tmp_root_->indx_ = rhs.root_->indx_;
 
             queue.push(rhs.root_.get());
@@ -153,7 +145,7 @@ namespace Trees
 
                 if (node->left_)
                 {
-                    tmp_node->left_ = std::make_unique<Node>(*(node->left_));
+                    tmp_node->left_ = std::make_unique<Node>((node->left_)->key_);
                     tmp_node->left_->parent_ = tmp_node;
 
                     queue.push(node->left_.get());
@@ -161,7 +153,7 @@ namespace Trees
                 }
                 if (node->right_)
                 {
-                    tmp_node->right_ = std::make_unique<Node>(*(node->right_));
+                    tmp_node->right_ = std::make_unique<Node>((node->right_)->key_);
                     tmp_node->right_->parent_ = tmp_node;
 
                     queue.push(node->right_.get());
@@ -175,7 +167,7 @@ namespace Trees
             while (tmp_first_elem_->left_) tmp_first_elem_ = tmp_first_elem_->left_.get();
 
             size_ = tmp_size_;
-            root_ = tmp_root_;
+            root_ = std::move(tmp_root_);
             first_elem_ = tmp_first_elem_;
         }
 
