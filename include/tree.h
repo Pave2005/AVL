@@ -24,9 +24,9 @@ namespace Trees
         {
             T key_;
 
-            Node* parent_                 = nullptr;
-            std::unique_ptr<Node> left_   = nullptr;
-            std::unique_ptr<Node> right_  = nullptr;
+            Node* parent_                = nullptr;
+            std::unique_ptr<Node> left_  = nullptr;
+            std::unique_ptr<Node> right_ = nullptr;
 
             int indx_          = -1;
             int height_        =  1;
@@ -63,14 +63,6 @@ namespace Trees
 
                 return *this;
             }
-
-            void update ()
-            {
-                int leftHeight  = (left_  ? left_->height_  : 0);
-                int rightHeight = (right_ ? right_->height_ : 0);
-                balanceFactor_  = leftHeight - rightHeight;
-                height_         = std::max(leftHeight, rightHeight) + 1;
-            }
         };
 
         std::unique_ptr<Node> root_ {};
@@ -85,6 +77,15 @@ namespace Trees
             std::swap(this->size_, rhs.size_);
             std::swap(this->root_, rhs.root_);
             std::swap(this->first_elem_, rhs.first_elem_);
+        }
+
+        void update (Node* node)
+        {
+            int leftHeight  = (node->left_  ? node->left_->height_  : 0);
+            int rightHeight = (node->right_ ? node->right_->height_ : 0);
+
+            node->balanceFactor_ = leftHeight - rightHeight;
+            node->height_        = std::max(leftHeight, rightHeight) + 1;
         }
 
     public:
@@ -208,8 +209,8 @@ namespace Trees
             node->parent_ = tmp.get();
             tmp->left_    = std::move(node);
 
-            tmp->left_->update();
-            tmp->update();
+            update((tmp->left_).get());
+            update(tmp.get());
 
             return std::move(tmp);
         }
@@ -225,15 +226,15 @@ namespace Trees
             node->parent_ = tmp.get();
             tmp->right_   = std::move(node);
 
-            tmp->right_->update();
-            tmp->update();
+            update((tmp->right_).get());
+            update(tmp.get());
 
             return std::move(tmp);
         }
 
         std::unique_ptr<Node> balance (std::unique_ptr<Node>& node)
         {
-            node->update ();
+            update(node.get());
 
             if (node->balanceFactor_ > 1)
             {
