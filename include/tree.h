@@ -13,6 +13,7 @@
 #include <functional>
 #include <string_view>
 #include <utility>
+#include <new>
 
 namespace Trees
 {
@@ -24,9 +25,9 @@ namespace Trees
         {
             T key_;
 
-            Node* parent_                = nullptr;
-            std::unique_ptr<Node> left_  = nullptr;
-            std::unique_ptr<Node> right_ = nullptr;
+            Node* parent_ = nullptr;
+            Node* left_   = nullptr;
+            Node* right_  = nullptr;
 
             int indx_          = -1;
             int height_        =  1;
@@ -37,6 +38,8 @@ namespace Trees
             template<class... Args>
             Node (Args&&... key) : key_(std::forward<Args>(key)...) {}
 
+            ~Node () noexcept {}
+
             Node (const Node& rhs)
             {
                 key_    = rhs.key_;
@@ -45,7 +48,7 @@ namespace Trees
                 balanceFactor_ = rhs.balanceFactor_;
             }
 
-            void node_swap (Node& rhs)
+            void swap (Node& rhs)
             {
                 std::swap(this->key_, rhs.key_);
                 std::swap(this->indx_, rhs.indx_);
@@ -58,21 +61,32 @@ namespace Trees
                 if (this != &rhs)
                 {
                     Node tmp {rhs};
-                    node_swap (rhs);
+                    swap(rhs);
                 }
 
                 return *this;
             }
+
+            Node (Node&& rhs) noexcept { swap(rhs); }
+
+            Node& operator= (SearchTree&& rhs)
+            {
+                if (this != &rhs) swap(rhs);
+                return *this;
+            }
+
         };
 
-        std::unique_ptr<Node> root_ {};
+        Node* root_ = nullptr;
         Node* first_elem_ = nullptr;
+
+        std::vector<std::unique_ptr<Node>> nodes_;
 
         size_t size_ = 0;
 
         Compare key_compare;
 
-        void tree_swap (SearchTree& rhs)
+        void swap (SearchTree& rhs)
         {
             std::swap(this->size_, rhs.size_);
             std::swap(this->root_, rhs.root_);
@@ -91,38 +105,15 @@ namespace Trees
     public:
         SearchTree () : root_(nullptr) {}
 
-        ~SearchTree ()
+        ~SearchTree () noexcept
         {
-            Node* node_ptr = root_.get();
+            if (nodes_.empty()) return;
 
-            if (!node_ptr) return;
+            size_t size = nodes_.size();
 
-            while (node_ptr->left_ || node_ptr->right_ || node_ptr->parent_)
-            {
-                while (node_ptr->left_) node_ptr = node_ptr->left_.get();
+            std::unique_ptr<Node>* data = nodes_.data();
 
-                if (!node_ptr->right_)
-                {
-                    while (!node_ptr->right_ && node_ptr->parent_)
-                    {
-                        node_ptr = node_ptr->parent_;
-                        if (node_ptr->left_)
-                        {
-                            node_ptr->left_.reset();
-                        }
-                        else if (node_ptr->right_)
-                        {
-                            node_ptr->right_.reset();
-                        }
-                    }
-
-                    if (node_ptr->right_) node_ptr = node_ptr->right_.get();
-                }
-                else
-                {
-                    node_ptr = node_ptr->right_.get();
-                }
-            }
+            for (size_t i = 0; i < size; ++i) data[i] = nullptr;
         }
 
         SearchTree (const SearchTree& rhs) : root_(nullptr)
@@ -132,10 +123,14 @@ namespace Trees
             std::queue<Node*> queue;
 
             std::unique_ptr<Node> tmp_root_ = std::make_unique<Node>((rhs.root_)->key_);
-            tmp_root_->indx_ = rhs.root_->indx_;
 
-            queue.push(rhs.root_.get());
-            queue.push(tmp_root_.get());
+            Node* tmp_root_ptr = tmp_root_.get();
+            nodes_.push_back(std::move(tmp_root_));
+
+            tmp_root_ptr->indx_ = rhs.root_->indx_;
+
+            queue.push(rhs.root_);
+            queue.push(tmp_root_ptr);
 
             while (!queue.empty())
             {
@@ -146,29 +141,37 @@ namespace Trees
 
                 if (node->left_)
                 {
-                    tmp_node->left_ = std::make_unique<Node>((node->left_)->key_);
+                    std::unique_ptr<Node> tmp_node_left_unique = std::make_unique<Node>((node->left_)->key_);
+
+                    tmp_node->left_ = tmp_node_left_unique.get();
+                    nodes_.push_back(std::move(tmp_node_left_unique));
+
                     tmp_node->left_->parent_ = tmp_node;
 
-                    queue.push(node->left_.get());
-                    queue.push(tmp_node->left_.get());
+                    queue.push(node->left_);
+                    queue.push(tmp_node->left_);
                 }
                 if (node->right_)
                 {
-                    tmp_node->right_ = std::make_unique<Node>((node->right_)->key_);
+                    std::unique_ptr<Node> tmp_node_right_unique = std::make_unique<Node>((node->right_)->key_);
+
+                    tmp_node->right_ = tmp_node_right_unique.get();
+                    nodes_.push_back(std::move(tmp_node_right_unique));
+
                     tmp_node->right_->parent_ = tmp_node;
 
-                    queue.push(node->right_.get());
-                    queue.push(tmp_node->right_.get());
+                    queue.push(node->right_);
+                    queue.push(tmp_node->right_);
                 }
             }
 
             size_t tmp_size_ = rhs.size_;
 
-            Node* tmp_first_elem_ = tmp_root_.get();
-            while (tmp_first_elem_->left_) tmp_first_elem_ = tmp_first_elem_->left_.get();
+            Node* tmp_first_elem_ = tmp_root_ptr;
+            while (tmp_first_elem_->left_) tmp_first_elem_ = tmp_first_elem_->left_;
 
             size_ = tmp_size_;
-            root_ = std::move(tmp_root_);
+            root_ = tmp_root_ptr;
             first_elem_ = tmp_first_elem_;
         }
 
@@ -177,18 +180,18 @@ namespace Trees
             if (this != &rhs)
             {
                 SearchTree tmp {rhs};
-                tree_swap (tmp);
+                swap (tmp);
             }
 
             return *this;
         }
 
 // -----
-        SearchTree (SearchTree&& rhs) noexcept { tree_swap(rhs); }
+        SearchTree (SearchTree&& rhs) noexcept { swap(rhs); }
 
         SearchTree& operator= (SearchTree&& rhs)
         {
-            if (this != &rhs) tree_swap (rhs);
+            if (this != &rhs) swap(rhs);
             return *this;
         }
 
@@ -198,43 +201,43 @@ namespace Trees
 
 // -----
     private:
-        std::unique_ptr<Node> rotate_left (std::unique_ptr<Node>& node)
+        Node* rotate_left (Node*& node)
         {
-            std::unique_ptr<Node> tmp = std::move(node->right_);
+            Node* tmp = node->right_;
             tmp->parent_ = node->parent_;
 
-            node->right_ = std::move(tmp->left_);
-            if (node->right_) node->right_->parent_ = node.get();
+            node->right_ = tmp->left_;
+            if (node->right_) node->right_->parent_ = node;
 
-            node->parent_ = tmp.get();
-            tmp->left_    = std::move(node);
+            node->parent_ = tmp;
+            tmp->left_    = node;
 
-            update((tmp->left_).get());
-            update(tmp.get());
+            update(tmp->left_);
+            update(tmp);
 
-            return std::move(tmp);
+            return tmp;
         }
 
-        std::unique_ptr<Node> rotate_right (std::unique_ptr<Node>& node)
+        Node* rotate_right (Node*& node)
         {
-            std::unique_ptr<Node> tmp = std::move(node->left_);
+            Node* tmp = node->left_;
             tmp->parent_ = node->parent_;
 
-            node->left_ = std::move(tmp->right_);
-            if (node->left_) node->left_->parent_ = node.get();
+            node->left_ = tmp->right_;
+            if (node->left_) node->left_->parent_ = node;
 
-            node->parent_ = tmp.get();
-            tmp->right_   = std::move(node);
+            node->parent_ = tmp;
+            tmp->right_   = node;
 
-            update((tmp->right_).get());
-            update(tmp.get());
+            update(tmp->right_);
+            update(tmp);
 
-            return std::move(tmp);
+            return tmp;
         }
 
-        std::unique_ptr<Node> balance (std::unique_ptr<Node>& node)
+        Node* balance (Node*& node)
         {
-            update(node.get());
+            update(node);
 
             if (node->balanceFactor_ > 1)
             {
@@ -253,7 +256,7 @@ namespace Trees
                 return rotate_left(node);
             }
 
-            return std::move(node);
+            return node;
         }
 
         void rebalance (Node*& inserted_node, Node*& root)
@@ -271,7 +274,7 @@ namespace Trees
 
 // -----
     private:
-        std::unique_ptr<Node> create_node (const T& key)
+        Node* create_node (const T& key)
         {
             std::unique_ptr<Node> new_node = std::make_unique<Node>(key);
             new_node->indx_ = size_;
@@ -280,11 +283,14 @@ namespace Trees
             first_elem_ = (!first_elem_)                        ? new_node.get() : first_elem_;
             first_elem_ = (key_compare(key, first_elem_->key_)) ? new_node.get() : first_elem_;
 
-            return std::move(new_node);
+            Node* new_node_ptr = new_node.get();
+            nodes_.push_back(std::move(new_node));
+
+            return new_node_ptr;
         }
 
         template<class... Args>
-        std::unique_ptr<Node> create_node (Args&&... key)
+        Node* create_node (Args&&... key)
         {
             std::unique_ptr<Node> new_node = std::make_unique<Node>(std::forward<Args>(key)...);
             new_node->indx_ = size_;
@@ -293,82 +299,85 @@ namespace Trees
             first_elem_ = (!first_elem_)                                   ? new_node.get() : first_elem_;
             first_elem_ = (key_compare(new_node->key_, first_elem_->key_)) ? new_node.get() : first_elem_;
 
-            return std::move(new_node);
+            Node* new_node_ptr = new_node.get();
+            nodes_.push_back(std::move(new_node));
+
+            return new_node_ptr;
         }
 
-        void add_new_node (const T& key, std::unique_ptr<Node>& new_node, Node* curr_node_ptr)
+        void add_new_node (const T& key, Node*& new_node, Node* curr_node_ptr)
         {
             bool left_less = false;
 
             while ((left_less = key_compare(key, curr_node_ptr->key_)) && curr_node_ptr->left_ ||
                     key_compare(curr_node_ptr->key_, key) && curr_node_ptr->right_)
             {
-                if (left_less) curr_node_ptr = curr_node_ptr->left_.get();
-                else           curr_node_ptr = curr_node_ptr->right_.get();
+                if (left_less) curr_node_ptr = curr_node_ptr->left_;
+                else           curr_node_ptr = curr_node_ptr->right_;
             }
 
             if (left_less)
             {
-                curr_node_ptr->left_ = std::move(new_node);
+                curr_node_ptr->left_ = new_node;
                 curr_node_ptr->left_->parent_ = curr_node_ptr;
             }
             else
             {
-                curr_node_ptr->right_ = std::move(new_node);
+                curr_node_ptr->right_ = new_node;
                 curr_node_ptr->right_->parent_ = curr_node_ptr;
             }
         }
 
-        std::unique_ptr<Node> add_new_to_avl (const T& key, std::unique_ptr<Node>& new_node, std::unique_ptr<Node>& root__)
+        Node* add_new_to_avl (const T& key, Node*& new_node, Node*& root__)
         {
-            Node* curr_node_ptr = root__.get();
+            Node* curr_node_ptr = root__;
             add_new_node (key, new_node, curr_node_ptr);
 
-            Node* root = root__.get();
+            Node* root = root__;
             rebalance(curr_node_ptr, root);
 
             return balance(root__);
         }
 
-        std::unique_ptr<Node> insert_node (const T& key, std::unique_ptr<Node>& node)
+        Node* insert_node (const T& key, Node*& node)
         {
             if (!node)
             {
                 node = create_node(key);
-                return std::move(node);
+                return node;
             }
 
-            std::unique_ptr<Node> new_node = create_node(key);
+            Node* new_node = create_node(key);
 
-            return add_new_to_avl (key, new_node, node);
+            return add_new_to_avl(key, new_node, node);
         }
 
         template<class... Args>
-        std::unique_ptr<Node> emplace_node (std::unique_ptr<Node>& node, Args&&... key)
+        Node* emplace_node (Node*& node, Args&&... key)
         {
             if (!node)
             {
                 node = create_node(std::forward<Args>(key)...);
-                return std::move(node);
+                return node;
             }
 
-            std::unique_ptr<Node> new_node = create_node(std::forward<Args>(key)...);
+            Node* new_node = create_node(std::forward<Args>(key)...);
 
-            return add_new_to_avl (new_node->key_, new_node, node);
+            return add_new_to_avl(new_node->key_, new_node, node);
         }
 
     public:
         void insert (const T& key)
         {
-            std::unique_ptr<Node> inserted_node = insert_node(key, root_);
-            root_ = std::move(inserted_node);
+            Node* inserted_node = insert_node(key, root_);
+            root_ = inserted_node;
         }
 
         template<class... Args>
         void emplace (Args&&... args)
         {
-            std::unique_ptr<Node> inserted_node = emplace_node(root_, std::forward<Args>(args)...);
-            root_ = std::move(inserted_node);
+            Node* inserted_node = emplace_node(root_, std::forward<Args>(args)...);
+            root_ = inserted_node;
         }
 
 // -----
@@ -379,7 +388,7 @@ namespace Trees
 
         iterator lower_bound (const T& key) const
         {
-            Node* node = root_.get();
+            Node* node = root_;
             Node* res  = nullptr;
 
             while (node)
@@ -387,9 +396,9 @@ namespace Trees
                 if (node->key_ >= key)
                 {
                     res = node;
-                    node = node->left_.get();
+                    node = node->left_;
                 }
-                else node = node->right_.get();
+                else node = node->right_;
             }
 
             return iterator {res};
@@ -397,7 +406,7 @@ namespace Trees
 
         iterator upper_bound (const T& key) const
         {
-            Node* node = root_.get();
+            Node* node = root_;
             Node* res  = nullptr;
 
             while (node)
@@ -405,9 +414,9 @@ namespace Trees
                 if (node->key_ > key)
                 {
                     res = node;
-                    node = node->left_.get();
+                    node = node->left_;
                 }
-                else node = node->right_.get();
+                else node = node->right_;
             }
 
             return iterator {res};
@@ -422,13 +431,13 @@ namespace Trees
             {
                 if (node_->right_)
                 {
-                    node_ = node_->right_.get();
-                    while (node_->left_) node_ = node_->left_.get();
+                    node_ = node_->right_;
+                    while (node_->left_) node_ = node_->left_;
                 }
                 else
                 {
                     Node* parent = node_->parent_;
-                    while (parent && node_ == parent->right_.get())
+                    while (parent && node_ == parent->right_)
                     {
                         node_ = parent;
                         parent = parent->parent_;
@@ -441,13 +450,13 @@ namespace Trees
             {
                 if (node_->left_)
                 {
-                    node_ = node_->left_.get();
-                    while (node_->right_) node_ = node_->right_.get();
+                    node_ = node_->left_;
+                    while (node_->right_) node_ = node_->right_;
                 }
                 else
                 {
                     Node* parent = node_->parent_;
-                    while (parent && node_ == parent->left_.get())
+                    while (parent && node_ == parent->left_)
                     {
                         node_ = parent;
                         parent = parent->parent_;
@@ -476,27 +485,27 @@ namespace Trees
 
             iterator& operator++ ()
             {
-                advance_fwd ();
+                advance_fwd();
                 return *this;
             }
 
             iterator operator++ (int)
             {
                 auto tmp = *this;
-                advance_fwd ();
+                advance_fwd();
                 return tmp;
             }
 
             iterator& operator-- ()
             {
-                advance_bwd ();
+                advance_bwd();
                 return *this;
             }
 
             iterator operator-- (int)
             {
                 auto tmp = *this;
-                advance_bwd ();
+                advance_bwd();
                 return tmp;
             }
 
@@ -528,7 +537,7 @@ namespace Trees
             if (!root_) return;
 
             std::stack<Node*> stack;
-            stack.push(root_.get());
+            stack.push(root_);
 
             bool is_root = true;
             while (!stack.empty())
@@ -543,8 +552,8 @@ namespace Trees
 
                 stack.pop();
 
-                if (node->right_) stack.push(node->right_.get());
-                if (node->left_)  stack.push(node->left_.get());
+                if (node->right_) stack.push(node->right_);
+                if (node->left_)  stack.push(node->left_);
             }
         }
     };
