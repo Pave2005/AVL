@@ -51,6 +51,11 @@ namespace Trees
             void swap (Node& rhs)
             {
                 std::swap(this->key_, rhs.key_);
+
+                std::swap(this->parent_, rhs.parent_);
+                std::swap(this->left_, rhs.left_);
+                std::swap(this->right_, rhs.right_);
+
                 std::swap(this->indx_, rhs.indx_);
                 std::swap(this->height_, rhs.height_);
                 std::swap(this->balanceFactor_, rhs.balanceFactor_);
@@ -82,15 +87,14 @@ namespace Trees
 
         std::vector<std::unique_ptr<Node>> nodes_;
 
-        size_t size_ = 0;
-
         Compare key_compare;
 
         void swap (SearchTree& rhs)
         {
-            std::swap(this->size_, rhs.size_);
             std::swap(this->root_, rhs.root_);
             std::swap(this->first_elem_, rhs.first_elem_);
+
+            this->nodes_.swap(rhs.nodes_);
         }
 
         void update (Node* node)
@@ -104,17 +108,6 @@ namespace Trees
 
     public:
         SearchTree () : root_(nullptr) {}
-
-        ~SearchTree () noexcept
-        {
-            if (nodes_.empty()) return;
-
-            size_t size = nodes_.size();
-
-            std::unique_ptr<Node>* data = nodes_.data();
-
-            for (size_t i = 0; i < size; ++i) data[i] = nullptr;
-        }
 
         SearchTree (const SearchTree& rhs) : root_(nullptr)
         {
@@ -165,12 +158,9 @@ namespace Trees
                 }
             }
 
-            size_t tmp_size_ = rhs.size_;
-
             Node* tmp_first_elem_ = tmp_root_ptr;
             while (tmp_first_elem_->left_) tmp_first_elem_ = tmp_first_elem_->left_;
 
-            size_ = tmp_size_;
             root_ = tmp_root_ptr;
             first_elem_ = tmp_first_elem_;
         }
@@ -196,8 +186,8 @@ namespace Trees
         }
 
 // -----
-        int  size  () const { return size_;      }
-        bool empty () const { return size_ == 0; }
+        int  size  () const { return nodes_.size(); }
+        bool empty () const { return nodes_.empty(); }
 
 // -----
     private:
@@ -277,8 +267,7 @@ namespace Trees
         Node* create_node (const T& key)
         {
             std::unique_ptr<Node> new_node = std::make_unique<Node>(key);
-            new_node->indx_ = size_;
-            ++size_;
+            new_node->indx_ = nodes_.size();
 
             first_elem_ = (!first_elem_)                        ? new_node.get() : first_elem_;
             first_elem_ = (key_compare(key, first_elem_->key_)) ? new_node.get() : first_elem_;
@@ -293,8 +282,7 @@ namespace Trees
         Node* create_node (Args&&... key)
         {
             std::unique_ptr<Node> new_node = std::make_unique<Node>(std::forward<Args>(key)...);
-            new_node->indx_ = size_;
-            ++size_;
+            new_node->indx_ = nodes_.size();
 
             first_elem_ = (!first_elem_)                                   ? new_node.get() : first_elem_;
             first_elem_ = (key_compare(new_node->key_, first_elem_->key_)) ? new_node.get() : first_elem_;
