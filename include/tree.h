@@ -40,13 +40,7 @@ namespace Trees
 
             ~Node () noexcept {}
 
-            Node (const Node& rhs)
-            {
-                key_    = rhs.key_;
-                indx_   = rhs.indx_;
-                height_ = rhs.height_;
-                balanceFactor_ = rhs.balanceFactor_;
-            }
+            Node (const Node& rhs) { key_ = rhs.key_; }
 
             void swap (Node& rhs)
             {
